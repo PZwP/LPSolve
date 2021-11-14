@@ -1,0 +1,7 @@
+.vs
+x64
+*.vcxproj*
+*.sln
+*log
+*.pdb
+*.obj
