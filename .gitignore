@@ -1,7 +1,9 @@
 .vs
 x64
-*.vcxproj*
+Debug
+lp_*
 *.sln
-*log
-*.pdb
+*.vcxproj*
 *.obj
+*.dll
+*.lib
