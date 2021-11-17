@@ -7,3 +7,5 @@ lp_*
 *.obj
 *.dll
 *.lib
+
+model.lp

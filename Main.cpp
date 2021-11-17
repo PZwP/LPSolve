@@ -1,4 +1,5 @@
 #include "lp_lib.h"
+#include<iostream>
 
 int demo()
 {
@@ -102,7 +103,7 @@ int demo()
         /* just out of curioucity, now show the model in lp format on screen */
         /* this only works if this is a console application. If not, use write_lp and a filename */
         write_LP(lp, stdout);
-        /* write_lp(lp, "model.lp"); */
+        //write_lp(lp, "model.lp"); 
 
         /* I only want to see important messages on screen while solving */
         set_verbose(lp, IMPORTANT);
@@ -147,5 +148,21 @@ int demo()
 
 int main()
 {
-    demo();
+    lprec* lp;
+
+    // Read LP model from file "input.lp"
+    lp = read_LP("input.lp", NORMAL, NULL);
+    if(lp == NULL)   // File could not be opened or file has wrong structure or not enough memory available to setup an lprec structure
+    {
+        lp = make_lp(0, 0);
+        if(lp == NULL)
+        {
+            std::cerr << "Unable to create new LP model\n";
+            return 1;
+        }
+    }
+    // Model created
+
+    delete_lp(lp);
+    return 0;
 }
