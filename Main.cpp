@@ -1,5 +1,6 @@
 #include "lp_lib.h"
 #include<iostream>
+#include<fstream>
 
 int demo()
 {
@@ -146,8 +147,46 @@ int demo()
     return(ret);
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    std::string a, b, c, x;
+    a = "input/A.txt";
+    b = "input/B.txt";
+    c = "input/C.txt";
+    x = "input/X.txt";
+    if(argc >= 2)
+    {
+        a = argv[1];
+        if(argc >= 3)
+        {
+            b = argv[2];
+            if(argc >= 4)
+            {
+                c = argv[3];
+                if(argc >= 5)
+                    x = argv[4];
+            }
+        }
+    }
+    std::cout << "A: " << a << std::endl;
+    std::cout << "B: " << b << std::endl;
+    std::cout << "C: " << c << std::endl;
+    std::cout << "X: " << x << std::endl;
+    std::ifstream file_a, file_b, file_c, file_x;
+    file_a.open(a);
+    file_b.open(b);
+    file_c.open(c);
+    file_x.open(x);
+
+    std::fstream result;
+    std::string s("result.txt");
+    result.open(s.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
+    if(!result.is_open())
+        return 1;
+    result << "test";
+
+    /*
+
     lprec* lp;
 
     // Read LP model from file "input.lp"
@@ -163,6 +202,10 @@ int main()
     }
     // Model created
 
+    demo();
+    int i;
+    std::cin >> i;
+
     delete_lp(lp);
-    return 0;
+    return 0;*/
 }

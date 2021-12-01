@@ -1,11 +1,13 @@
 .vs
 x64
 Debug
+Release
 lp_*
 *.sln
 *.vcxproj*
 *.obj
 *.dll
 *.lib
-
+input
+result.txt
 model.lp
