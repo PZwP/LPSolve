@@ -2,6 +2,46 @@
 #include<iostream>
 #include<fstream>
 
+struct model
+{
+    int n, m;
+    REAL* B;
+    REAL* C;
+
+    lprec* lp;
+};
+
+void create_model(model& M, std::string a, std::string b, std::string c, std::string x)
+{
+    // get matrices B and C as they will determine the size of a model
+    REAL temp;
+
+    std::ifstream file_b, file_c, file_x;
+    file_b.open(b);
+    file_c.open(c);
+
+    /* get number of variables determined by a matrix C
+       and number of constraints determined by a matrix B */
+    M.n = 0;
+    M.m = 0;
+    while(file_c >> temp)
+        M.n++;
+    while(file_b >> temp)
+        M.m++;
+
+    // rewind files c and b
+    file_c.clear();
+    file_c.seekg(0, std::ios::beg);
+    file_b.clear();
+    file_b.seekg(0, std::ios::beg);
+
+    // get matrices B and C
+
+    // close files
+    file_b.close();
+    file_c.close();
+}
+
 int demo()
 {
     lprec* lp;
@@ -149,11 +189,13 @@ int demo()
 
 int main(int argc, char* argv[])
 {
-    std::string a, b, c, x;
+    // allow using nondefault filenames
+    std::string a, b, c, x, r;
     a = "input/A.txt";
     b = "input/B.txt";
     c = "input/C.txt";
     x = "input/X.txt";
+    r = "result.txt";
     if(argc >= 2)
     {
         a = argv[1];
@@ -164,48 +206,26 @@ int main(int argc, char* argv[])
             {
                 c = argv[3];
                 if(argc >= 5)
+                {
                     x = argv[4];
+                    if(argc >= 6)
+                        r = argv[5];
+                }
             }
         }
     }
-    std::cout << "A: " << a << std::endl;
-    std::cout << "B: " << b << std::endl;
-    std::cout << "C: " << c << std::endl;
-    std::cout << "X: " << x << std::endl;
-    std::ifstream file_a, file_b, file_c, file_x;
-    file_a.open(a);
-    file_b.open(b);
-    file_c.open(c);
-    file_x.open(x);
+    
+    // create model
+    model M;
+    create_model(M, a, b, c, x);
+
 
     std::fstream result;
-    std::string s("result.txt");
-    result.open(s.c_str(), std::fstream::in | std::fstream::out | std::fstream::trunc);
+    result.open(r, std::fstream::in | std::fstream::out | std::fstream::trunc);
     if(!result.is_open())
         return 1;
     result << "test";
 
-    /*
-
-    lprec* lp;
-
-    // Read LP model from file "input.lp"
-    lp = read_LP("input.lp", NORMAL, NULL);
-    if(lp == NULL)   // File could not be opened or file has wrong structure or not enough memory available to setup an lprec structure
-    {
-        lp = make_lp(0, 0);
-        if(lp == NULL)
-        {
-            std::cerr << "Unable to create new LP model\n";
-            return 1;
-        }
-    }
-    // Model created
-
-    demo();
-    int i;
-    std::cin >> i;
-
-    delete_lp(lp);
-    return 0;*/
+    
+    return 0;
 }
