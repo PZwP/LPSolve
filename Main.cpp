@@ -2,193 +2,105 @@
 #include<iostream>
 #include<fstream>
 
-struct model
-{
-    int n, m;
-    REAL* B;
-    REAL* C;
-
-    lprec* lp;
-};
-
-void create_model(model& M, std::string a, std::string b, std::string c, std::string x)
+lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 {
     // get matrices B and C as they will determine the size of a model
     REAL temp;
+    int n, m;
+    REAL* row;
 
-    std::ifstream file_b, file_c, file_x;
+    std::ifstream file_a, file_b, file_c, file_x;
     file_b.open(b);
     file_c.open(c);
 
     /* get number of variables determined by a matrix C
        and number of constraints determined by a matrix B */
-    M.n = 0;
-    M.m = 0;
+    n = 0;
+    m = 0;
     while(file_c >> temp)
-        M.n++;
+        n++;
     while(file_b >> temp)
-        M.m++;
+        m++;
 
-    // rewind files c and b
+    //check if matrix A is of correct dimension
+    file_a.open(a);
+    int size_a = 0;
+    while(file_a >> temp)
+        size_a++;
+    if(size_a != n * m)
+        std::cerr << "Warning: size of matrix A (" << size_a << ") is not equal to expected (" << n * m << ")\n";
+
+    // rewind files a, b, and cc
     file_c.clear();
     file_c.seekg(0, std::ios::beg);
     file_b.clear();
     file_b.seekg(0, std::ios::beg);
+    file_a.clear();
+    file_a.seekg(0, std::ios::beg);
 
-    // get matrices B and C
+    row = new REAL[n + 1];  // values start at element 1
+
+    //create and initialase a new model
+    lprec* lp;
+    lp = make_lp(0, n);
+    if(lp == NULL || row == NULL)
+    {
+        std::cerr << "Unable to create new model\n";
+        return NULL;
+    }
+
+    //name variables (names may not contain spaces)
+    file_x.open(x);
+    for(int i = 0; i < n; i++)
+    {
+        std::string tmp;
+        file_x >> tmp;
+        set_col_name(lp, i + 1, const_cast<char*>(tmp.c_str()));
+    }
+
+    set_add_rowmode(lp, TRUE); //optimization for constructing the model row by row
+
+    // set the objective function
+    for(int i = 1; i <= n; i++)
+        file_c >> row[i];
+    if(!set_obj_fn(lp, row))
+    {
+        std::cerr << "Unable to set objective function\n";
+        return NULL;
+    }
+
+    // create the constraints
+    for(int i = 0; i < m; i++)
+    {
+        for(int j = 1; j < n; j++)
+            file_a >> row[j];
+        file_c >> temp;
+        if(!add_constraint(lp, row, LE, temp))
+        {
+            std::cerr << "Unable to add constraint\n";
+            return NULL;
+        }
+    }
+
+    set_maxim(lp);
+    set_add_rowmode(lp, FALSE);
 
     // close files
+    file_a.close();
     file_b.close();
     file_c.close();
-}
+    file_x.close();
 
-int demo()
-{
-    lprec* lp;
-    int Ncol, * colno = NULL, j, ret = 0;
-    REAL* row = NULL;
+    // free allocated memory
+    delete[] row;
 
-    /* We will build the model row by row
-       So we start with creating a model with 0 rows and 2 columns */
-    Ncol = 2; /* there are two variables in the model */
-    lp = make_lp(0, Ncol);
-    if(lp == NULL)
-        ret = 1; /* couldn't construct a new model... */
-
-    if(ret == 0)
-    {
-        /* let us name our variables. Not required, but can be useful for debugging */
-        set_col_name(lp, 1, "x");
-        set_col_name(lp, 2, "y");
-
-        /* create space large enough for one row */
-        colno = (int*) malloc(Ncol * sizeof(*colno));
-        row = (REAL*) malloc(Ncol * sizeof(*row));
-        if((colno == NULL) || (row == NULL))
-            ret = 2;
-    }
-
-    if(ret == 0)
-    {
-        set_add_rowmode(lp, TRUE);  /* makes building the model faster if it is done rows by row */
-
-        /* construct first row (120 x + 210 y <= 15000) */
-        j = 0;
-
-        colno[j] = 1; /* first column */
-        row[j++] = 120;
-
-        colno[j] = 2; /* second column */
-        row[j++] = 210;
-
-        /* add the row to lpsolve */
-        if(!add_constraintex(lp, j, row, colno, LE, 15000))
-            ret = 3;
-    }
-
-    if(ret == 0)
-    {
-        /* construct second row (110 x + 30 y <= 4000) */
-        j = 0;
-
-        colno[j] = 1; /* first column */
-        row[j++] = 110;
-
-        colno[j] = 2; /* second column */
-        row[j++] = 30;
-
-        /* add the row to lpsolve */
-        if(!add_constraintex(lp, j, row, colno, LE, 4000))
-            ret = 3;
-    }
-
-    if(ret == 0)
-    {
-        /* construct third row (x + y <= 75) */
-        j = 0;
-
-        colno[j] = 1; /* first column */
-        row[j++] = 1;
-
-        colno[j] = 2; /* second column */
-        row[j++] = 1;
-
-        /* add the row to lpsolve */
-        if(!add_constraintex(lp, j, row, colno, LE, 75))
-            ret = 3;
-    }
-
-    if(ret == 0)
-    {
-        set_add_rowmode(lp, FALSE); /* rowmode should be turned off again when done building the model */
-
-        /* set the objective function (143 x + 60 y) */
-        j = 0;
-
-        colno[j] = 1; /* first column */
-        row[j++] = 143;
-
-        colno[j] = 2; /* second column */
-        row[j++] = 60;
-
-        /* set the objective in lpsolve */
-        if(!set_obj_fnex(lp, j, row, colno))
-            ret = 4;
-    }
-
-    if(ret == 0)
-    {
-        /* set the object direction to maximize */
-        set_maxim(lp);
-
-        /* just out of curioucity, now show the model in lp format on screen */
-        /* this only works if this is a console application. If not, use write_lp and a filename */
-        write_LP(lp, stdout);
-        //write_lp(lp, "model.lp"); 
-
-        /* I only want to see important messages on screen while solving */
-        set_verbose(lp, IMPORTANT);
-
-        /* Now let lpsolve calculate a solution */
-        ret = solve(lp);
-        if(ret == OPTIMAL)
-            ret = 0;
-        else
-            ret = 5;
-    }
-
-    if(ret == 0)
-    {
-        /* a solution is calculated, now lets get some results */
-
-        /* objective value */
-        printf("Objective value: %f\n", get_objective(lp));
-
-        /* variable values */
-        get_variables(lp, row);
-        for(j = 0; j < Ncol; j++)
-            printf("%s: %f\n", get_col_name(lp, j + 1), row[j]);
-
-        /* we are done now */
-    }
-
-    /* free allocated memory */
-    if(row != NULL)
-        free(row);
-    if(colno != NULL)
-        free(colno);
-
-    if(lp != NULL)
-    {
-        /* clean up such that all used memory by lpsolve is freed */
-        delete_lp(lp);
-    }
-
-    return(ret);
+    return lp;
 }
 
 int main(int argc, char* argv[])
 {
+    bool model_ready = false;
+
     // allow using nondefault filenames
     std::string a, b, c, x, r;
     a = "input/A.txt";
@@ -199,33 +111,133 @@ int main(int argc, char* argv[])
     if(argc >= 2)
     {
         a = argv[1];
+        if(a[a.length() - 2] == 'l' && a[a.length() - 1] == 'p')
+            model_ready = true;
         if(argc >= 3)
         {
-            b = argv[2];
-            if(argc >= 4)
+            if(model_ready)
+                r = argv[2];
+            else
             {
-                c = argv[3];
-                if(argc >= 5)
+                b = argv[2];
+                if(argc >= 4)
                 {
-                    x = argv[4];
-                    if(argc >= 6)
-                        r = argv[5];
+                    c = argv[3];
+                    if(argc >= 5)
+                    {
+                        x = argv[4];
+                        if(argc >= 6)
+                            r = argv[5];
+                    }
                 }
             }
         }
     }
     
     // create model
-    model M;
-    create_model(M, a, b, c, x);
+    lprec* model;
+    if(model_ready)
+        model = read_LP(const_cast<char*>(a.c_str()), NORMAL, NULL);
+    else
+        model = create_model(a, b, c, x);
 
+    if(model == NULL)
+    {
+        std::cerr << "Model not created. Exiting program.\n";
+        return 1;
+    }
 
+    // print model to screen
+    set_verbose(model, IMPORTANT);
+    write_lp(model, NULL);
+    std::cout << "\n\n\n";
+
+    // solve model
+    int ret = solve(model);
+    switch(ret)
+    {
+        case -2:
+        {
+            std::cout << "Out of memory\n";
+            break;
+        }
+        case 0:
+        {
+            std::cout << "An optimal solution was obtained\n";
+            break;
+        }
+        case 1:
+        {
+            std::cout << "An integer solution was found. The solution is not guaranteed the most optimal one\n";
+            break;
+        }
+        case 2:
+        {
+            std::cout << "The model is infeasible\n";
+            break;
+        }
+        case 3:
+        {
+            std::cout << "The model is unbounded\n";
+            break;
+        }
+        case 4:
+        {
+            std::cout << "The model is degenerative\n";
+            break;
+        }
+        case 5:
+        {
+            std::cout << "Numerical failure encountered\n";
+            break;
+        }
+        case 6:
+        {
+            std::cout << "The abort routine returned TRUE\n";
+            break;
+        }
+        case 7:
+        {
+            std::cout << "A timeout occurred\n";
+            break;
+        }
+        case 9:
+        {
+            std::cout << "The model could be solved by presolve\n";
+            break;
+        }
+        case 25:
+        {
+            std::cout << "Accuracy error encountered\n";
+            break;
+        }
+        default:
+            std::cerr << "Error: solve() returned an unknown value\n";
+    }
+
+    // print results
+    std::cout << "Objective value: " << get_objective(model) << '\n';
+
+    REAL* row;
+    row = new REAL[get_Ncolumns(model)];
+    get_variables(model, row);
+
+    // open file for result writing
     std::fstream result;
     result.open(r, std::fstream::in | std::fstream::out | std::fstream::trunc);
     if(!result.is_open())
-        return 1;
-    result << "test";
+        return 2;
+    
+    // write results to screen and file
+    for(int i = 0; i < get_Ncolumns(model); i++)
+    {
+        std::cout << get_col_name(model, i + 1) << ": " << row[i] << '\n';
+        result << row[i] << '\n';
+    }
 
+    // free allocated memory
+    delete[] row;
+    delete_lp(model);
     
     return 0;
 }
