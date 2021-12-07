@@ -8,6 +8,4 @@ lp_*
 *.obj
 *.dll
 *.lib
-input
-*.txt
 *.lp

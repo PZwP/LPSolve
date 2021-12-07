@@ -1,6 +1,7 @@
 #include "lp_lib.h"
 #include<iostream>
 #include<fstream>
+#include<sstream>
 
 lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 {
@@ -51,11 +52,33 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 
     //name variables (names may not contain spaces)
     file_x.open(x);
-    for(int i = 0; i < n; i++)
+    for(int i = 0; i < n && !file_x.eof(); i++)
     {
-        std::string tmp;
-        file_x >> tmp;
-        set_col_name(lp, i + 1, const_cast<char*>(tmp.c_str()));
+        std::string tmp, name, type;
+        REAL low, up;
+        getline(file_x, tmp);
+        std::stringstream ss(tmp);
+        ss >> name;
+        if(ss >> type)
+        {
+            if(type == "int")
+                set_int(lp, i + 1, TRUE);
+            if(type == "bin" || type == "binary")
+                set_binary(lp, i + 1, TRUE);
+            if(type == "sec")
+                set_semicont(lp, i + 1, TRUE);
+            if(type == "free")
+                set_unbounded(lp, i + 1);
+        }
+        if(ss >> low)
+        {
+            set_lowbo(lp, i + 1, low);
+        }
+        if(ss >> up)
+        {
+            set_upbo(lp, i + 1, up);
+        }
+        set_col_name(lp, i + 1, const_cast<char*>(name.c_str()));
     }
 
     set_add_rowmode(lp, TRUE); //optimization for constructing the model row by row
@@ -72,9 +95,9 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
     // create the constraints
     for(int i = 0; i < m; i++)
     {
-        for(int j = 1; j < n; j++)
+        for(int j = 1; j <= n; j++)
             file_a >> row[j];
-        file_c >> temp;
+        file_b >> temp;
         if(!add_constraint(lp, row, LE, temp))
         {
             std::cerr << "Unable to add constraint\n";
