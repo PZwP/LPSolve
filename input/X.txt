@@ -1,2 +1,20 @@
-x1	int	0	6
-x2	int
+p1	int
+p2	int
+p3	int
+p4	int
+p5	int
+p6	int
+p7	int
+p8	int
+p9	int
+p10	int
+r1	int
+r2	int
+r3	int
+r4	int
+r5	int
+r6	int
+r7	int
+r8	int
+r9	int
+r10	int
