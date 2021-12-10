@@ -6,7 +6,7 @@
 
 bool check_user_input()
 {
-    if(kbhit())
+    if(_kbhit())
         return true;
     return false;
 }
@@ -200,7 +200,7 @@ int my_solve(lprec* model, std::string r)
             std::cerr << "Error: solve() returned an unknown value\n";
     }
 
-    if(ret == 0 || ret == 1)
+    if(ret == 0 || ret == 1 || ret == 6)
     {
         // print results
         std::cout << "Objective value: " << get_objective(model) << '\n';
@@ -218,7 +218,8 @@ int my_solve(lprec* model, std::string r)
         // write results to screen and file
         for(int i = 0; i < get_Ncolumns(model); i++)
         {
-            std::cout << get_col_name(model, i + 1) << ": " << row[i] << '\n';
+            if(row[i]!=0)
+                std::cout << get_col_name(model, i + 1) << ": " << row[i] << '\n';
             result << row[i] << '\n';
         }
         std::cout << "\n\n";
@@ -254,12 +255,6 @@ void my_solve_time(lprec* model, std::string r, long timeout)
             set_break_at_value(model, get_objective(model) + 0.001);
             ret = my_solve(model, r);
         }
-}
-
-void my_solve_user_abort(lprec* model, std::string r)
-{
-    put_abortfunc(model, abort_on_user_input, NULL);
-    my_solve(model, r);
 }
 
 int main(int argc, char* argv[])
@@ -314,11 +309,13 @@ int main(int argc, char* argv[])
 
     // print model to screen
     set_verbose(model, IMPORTANT);
-    write_lp(model, NULL);
+    put_abortfunc(model, abort_on_user_input, NULL);//allow user to gracefully abort the program
+    write_lp(model, NULL);    // write model to console
+    //write_lp(model, "model.lp");  //write model to file
     std::cout << "\n\n\n";
-
+    
     //read config
-    long timeout = 0;//timeout in seconds, 0 if no timeout, -1 if save at each solution found, -2 if abort on user input
+    long timeout = 0;//timeout in seconds, 0 if no timeout, -1 if save at each solution found
     std::ifstream config;
     config.open("config.txt");
     if(config.is_open())
@@ -331,16 +328,10 @@ int main(int argc, char* argv[])
     if(timeout == 0)
         my_solve(model, r);
     else if(timeout < 0)
-    {
-        if(timeout < -1)
-            my_solve_user_abort(model,r);
-        else
-            my_solve_value(model, r);
-    }
+        my_solve_value(model, r);
     else
         my_solve_time(model, r, timeout);
-
-
+        
     // free allocated memory
     delete_lp(model);
     
