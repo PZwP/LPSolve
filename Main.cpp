@@ -18,8 +18,30 @@ int __WINAPI abort_on_user_input(lprec* model, void* userhandle)
 	return FALSE;
 }
 
+void replace_all(std::string filename, char what, char with)
+{
+	std::fstream f;
+	f.open(filename);
+	std::stringstream ss;
+	ss << f.rdbuf();
+	std::string s = ss.str();
+	for(unsigned int i = 0; i < s.length(); i++)
+		if(s[i] == what)
+			s[i] = with;
+	f.clear();
+	f.seekg(0, std::ios::beg);
+	f << s;
+	f.close();
+}
+
 lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 {
+	// sanitize input files: change all commas to points in case the files are copied from spreadsheets
+	replace_all(a, ',', '.');
+	replace_all(b, ',', '.');
+	replace_all(c, ',', '.');
+	replace_all(x, ',', '.');
+
 	// get matrices B and C as they will determine the size of a model
 	REAL temp;
 	unsigned int n, m;
@@ -347,6 +369,9 @@ int main(int argc, char* argv[])
 
 	// free allocated memory
 	delete_lp(model);
+
+	// sanitize output for easier pasting into a spreadsheet
+	replace_all(r, '.', ',');
 
 	return 0;
 }
