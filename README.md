@@ -4,7 +4,7 @@
 1. Download `lp_solve_5.5.2.11_dev_win32.zip` from https://sourceforge.net/projects/lpsolve/files/lpsolve/5.5.2.11/
 2. Unpack contents of that file into folder with files from this repository
 3. Change your compiler to 32-bit
-4. Add `lpsolve55.dll` to linker's additional dependencies/options
+4. Add `lpsolve55.lib` to linker's additional dependencies/options
 5. If necessary, add `#define WIN32` as a first line in `main.cpp`
 
 ## Usage
