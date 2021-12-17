@@ -161,6 +161,7 @@ int my_solve(lprec* model, std::string r)
 {
 	// solve model
 	int ret = solve(model);
+	std::cout << '\n';
 	switch(ret)
 	{
 		case -2:
@@ -343,7 +344,7 @@ int main(int argc, char* argv[])
 	}
 
 	// print model to screen
-	set_verbose(model, IMPORTANT);
+	set_verbose(model, NORMAL);
 	put_abortfunc(model, abort_on_user_input, NULL);//allow user to gracefully abort the program
 	write_lp(model, NULL);    // write model to console
 	//write_lp(model, "model.lp");  //write model to file
@@ -363,7 +364,10 @@ int main(int argc, char* argv[])
 	if(timeout == 0)
 		my_solve(model, r);
 	else if(timeout < 0)
+	{
+		set_verbose(model, IMPORTANT);
 		my_solve_value(model, r);
+	}
 	else
 		my_solve_time(model, r, timeout);
 
