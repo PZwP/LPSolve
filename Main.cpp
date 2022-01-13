@@ -1,24 +1,24 @@
-#include "lp_lib.h"
+#include "lpsolve/lp_lib.h"
 #include<iostream>
 #include<fstream>
 #include<sstream>
 #include<conio.h>
 
-bool check_user_input()
+bool check_user_input() noexcept
 {
 	if(_kbhit())
 		return true;
 	return false;
 }
 
-int __WINAPI abort_on_user_input(lprec* model, void* userhandle)
+extern "C" int __WINAPI abort_on_user_input(lprec*, void*)
 {
 	if(check_user_input())
 		return TRUE;
 	return FALSE;
 }
 
-void replace_all(std::string filename, char what, char with)
+void replace_all(const std::string& filename, char what, char with)
 {
 	std::fstream f;
 	f.open(filename);
@@ -34,7 +34,45 @@ void replace_all(std::string filename, char what, char with)
 	f.close();
 }
 
-lprec* create_model(std::string a, std::string b, std::string c, std::string x)
+void set_variables(lprec* lp, const std::string& x, unsigned int n)
+{
+	std::ifstream file_x;
+	file_x.open(x);
+	for(unsigned int i = 0; i < n && !file_x.eof(); i++)
+	{
+		std::string tmp;
+		std::string name;
+		std::string type;
+		REAL low;
+		REAL up;
+		getline(file_x, tmp);
+		std::stringstream ss(tmp);
+		ss >> name;
+		if(ss >> type)
+		{
+			if(type == "int")
+				set_int(lp, static_cast<int>(i) + 1, TRUE);
+			if(type == "bin" || type == "binary")
+				set_binary(lp, static_cast<int>(i) + 1, TRUE);
+			if(type == "sec")
+				set_semicont(lp, static_cast<int>(i) + 1, TRUE);
+			if(type == "free")
+				set_unbounded(lp, static_cast<int>(i) + 1);
+		}
+		if(ss >> low)
+		{
+			set_lowbo(lp, static_cast<int>(i) + 1, low);
+		}
+		if(ss >> up)
+		{
+			set_upbo(lp, static_cast<int>(i) + 1, up);
+		}
+		set_col_name(lp, static_cast<int>(i) + 1, const_cast<char*>(name.c_str()));
+	}
+	file_x.close();
+}
+
+lprec* create_model(const std::string& a, const std::string& b, const std::string& c, const std::string& x)
 {
 	// sanitize input files: change all commas to points in case the files are copied from spreadsheets
 	replace_all(a, ',', '.');
@@ -44,10 +82,13 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 
 	// get matrices B and C as they will determine the size of a model
 	REAL temp;
-	unsigned int n, m;
+	unsigned int n;
+	unsigned int m;
 	REAL* row;
 
-	std::ifstream file_a, file_b, file_c, file_x;
+	std::ifstream file_a;
+	std::ifstream file_b;
+	std::ifstream file_c;
 	file_b.open(b);
 	file_c.open(c);
 
@@ -81,42 +122,16 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 	//create and initialase a new model
 	lprec* lp;
 	lp = make_lp(0, static_cast<int>(n));
-	if(lp == NULL || row == NULL)
+	if(lp == nullptr || row == nullptr)
 	{
 		std::cerr << "Unable to create new model\n";
-		return NULL;
+		if(row)
+			delete[] row;
+		return nullptr;
 	}
 
 	//name variables (names may not contain spaces)
-	file_x.open(x);
-	for(unsigned int i = 0; i < n && !file_x.eof(); i++)
-	{
-		std::string tmp, name, type;
-		REAL low, up;
-		getline(file_x, tmp);
-		std::stringstream ss(tmp);
-		ss >> name;
-		if(ss >> type)
-		{
-			if(type == "int")
-				set_int(lp, static_cast<int>(i) + 1, TRUE);
-			if(type == "bin" || type == "binary")
-				set_binary(lp, static_cast<int>(i) + 1, TRUE);
-			if(type == "sec")
-				set_semicont(lp, static_cast<int>(i) + 1, TRUE);
-			if(type == "free")
-				set_unbounded(lp, static_cast<int>(i) + 1);
-		}
-		if(ss >> low)
-		{
-			set_lowbo(lp, static_cast<int>(i) + 1, low);
-		}
-		if(ss >> up)
-		{
-			set_upbo(lp, static_cast<int>(i) + 1, up);
-		}
-		set_col_name(lp, static_cast<int>(i) + 1, const_cast<char*>(name.c_str()));
-	}
+	set_variables(lp, x, n);
 
 	set_add_rowmode(lp, TRUE); //optimization for constructing the model row by row
 
@@ -126,7 +141,7 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 	if(!set_obj_fn(lp, row))
 	{
 		std::cerr << "Unable to set objective function\n";
-		return NULL;
+		return nullptr;
 	}
 
 	// create the constraints
@@ -138,7 +153,7 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 		if(!add_constraint(lp, row, LE, temp))
 		{
 			std::cerr << "Unable to add constraint\n";
-			return NULL;
+			return nullptr;
 		}
 	}
 
@@ -149,7 +164,6 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 	file_a.close();
 	file_b.close();
 	file_c.close();
-	file_x.close();
 
 	// free allocated memory
 	delete[] row;
@@ -157,68 +171,46 @@ lprec* create_model(std::string a, std::string b, std::string c, std::string x)
 	return lp;
 }
 
-int my_solve(lprec* model, std::string r)
+int my_solve(lprec* model, const std::string& r)
 {
 	// solve model
-	int ret = solve(model);
+	const int ret = solve(model);
 	std::cout << '\n';
 	switch(ret)
 	{
 		case -2:
-		{
 			std::cout << "Out of memory\n";
 			break;
-		}
 		case 0:
-		{
 			std::cout << "An optimal solution was obtained\n";
 			break;
-		}
 		case 1:
-		{
 			std::cout << "An integer solution was found. The solution is not guaranteed the most optimal one\n";
 			break;
-		}
 		case 2:
-		{
 			std::cout << "The model is infeasible\n";
 			break;
-		}
 		case 3:
-		{
 			std::cout << "The model is unbounded\n";
 			break;
-		}
 		case 4:
-		{
 			std::cout << "The model is degenerative\n";
 			break;
-		}
 		case 5:
-		{
 			std::cout << "Numerical failure encountered\n";
 			break;
-		}
 		case 6:
-		{
 			std::cout << "The abort routine returned TRUE\n";
 			break;
-		}
 		case 7:
-		{
 			std::cout << "A timeout occurred\n";
 			break;
-		}
 		case 9:
-		{
 			std::cout << "The model could be solved by presolve\n";
 			break;
-		}
 		case 25:
-		{
 			std::cout << "Accuracy error encountered\n";
 			break;
-		}
 		default:
 			std::cerr << "Error: solve() returned an unknown value\n";
 	}
@@ -229,7 +221,7 @@ int my_solve(lprec* model, std::string r)
 		std::cout << "Objective value: " << get_objective(model) << '\n';
 
 		REAL* row;
-		unsigned int number_of_columns = static_cast<unsigned int>(get_Ncolumns(model));
+		const auto number_of_columns = static_cast<unsigned int>(get_Ncolumns(model));
 		row = new REAL[number_of_columns];
 		get_variables(model, row);
 
@@ -254,7 +246,7 @@ int my_solve(lprec* model, std::string r)
 	return ret;
 }
 
-void my_solve_value(lprec* model, std::string r)
+void my_solve_value(lprec* model, const std::string& r)
 {
 	set_break_at_first(model, TRUE);
 	int ret = my_solve(model, r);
@@ -286,46 +278,52 @@ void my_solve_value(lprec* model, std::string r)
 	}
 }
 
-void my_solve_time(lprec* model, std::string r, long timeout)
+void my_solve_time(lprec* model, const std::string& r, long timeout)
 {
 	set_timeout(model, timeout);
 	my_solve(model, r);
 	set_timeout(model, 0);
 }
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
 	bool model_ready = false;
 
 	// allow using nondefault filenames
-	std::string a, b, c, x, r;
-	a = "input/A.txt";
-	b = "input/B.txt";
-	c = "input/C.txt";
-	x = "input/X.txt";
-	r = "result.txt";
+	std::string a = "input/A.txt";
+	std::string b = "input/B.txt";
+	std::string c = "input/C.txt";
+	std::string x = "input/X.txt";
+	std::string r = "result.txt";
+	if(argc > 6)
+		argc = 6;
 	if(argc >= 2)
 	{
 		a = argv[1];
 		if(a[a.length() - 2] == 'l' && a[a.length() - 1] == 'p')
-			model_ready = true;
-		if(argc >= 3)
 		{
-			if(model_ready)
+			model_ready = true;
+			if(argc >= 3)
 				r = argv[2];
-			else
+		}
+		else
+		{
+			switch(argc)
 			{
-				b = argv[2];
-				if(argc >= 4)
-				{
+				case 6:
+					r = argv[5];
+					[[fallthrough]];
+				case 5:
+					x = argv[4];
+					[[fallthrough]];
+				case 4:
 					c = argv[3];
-					if(argc >= 5)
-					{
-						x = argv[4];
-						if(argc >= 6)
-							r = argv[5];
-					}
-				}
+					[[fallthrough]];
+				case 3:
+					b = argv[2];
+					break;
+				default:
+					break;
 			}
 		}
 	}
@@ -333,11 +331,11 @@ int main(int argc, char* argv[])
 	// create model
 	lprec* model;
 	if(model_ready)
-		model = read_LP(const_cast<char*>(a.c_str()), NORMAL, NULL);
+		model = read_LP(const_cast<char*>(a.c_str()), NORMAL, nullptr);
 	else
 		model = create_model(a, b, c, x);
 
-	if(model == NULL)
+	if(model == nullptr)
 	{
 		std::cerr << "Model not created. Exiting program.\n";
 		return 1;
@@ -345,8 +343,8 @@ int main(int argc, char* argv[])
 
 	// print model to screen
 	set_verbose(model, NORMAL);
-	put_abortfunc(model, abort_on_user_input, NULL);//allow user to gracefully abort the program
-	write_lp(model, NULL);    // write model to console
+	put_abortfunc(model, abort_on_user_input, nullptr);   //allow user to gracefully abort the program
+	write_lp(model, nullptr);   // write model to console
 	//write_lp(model, "model.lp");  //write model to file
 	std::cout << "\n\n\n";
 
